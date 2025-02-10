@@ -154,10 +154,14 @@ impl WrappedServer {
             command.kill_on_drop(true);
             command.process_group(0); // Create new process group on Unix
             command.stdout(std::process::Stdio::piped());
+            command.stderr(std::process::Stdio::piped());
             let mut spawned = command.spawn()?;
             let stdout = spawned.stdout.take().expect("Failed to capture stdout");
+            let stderr = spawned.stderr.take().expect("Failed to capture stderr");
             let stdout_reader = tokio::io::BufReader::new(stdout);
-            let mut lines = tokio::io::AsyncBufReadExt::lines(stdout_reader);
+            let stderr_reader = tokio::io::BufReader::new(stderr);
+            let mut stdout_lines = tokio::io::AsyncBufReadExt::lines(stdout_reader);
+            let mut stderr_lines = tokio::io::AsyncBufReadExt::lines(stderr_reader);
             child = Some(spawned);
             self.running.store(true, Ordering::SeqCst);
 
@@ -173,9 +177,20 @@ impl WrappedServer {
                                 return Ok(());
                             }
                         }
-                        line = lines.next_line() => {
+                        line = stdout_lines.next_line() => {
                             if let Ok(Some(line)) = line {
                                 let mut lock = self.stdout.lock().unwrap();
+                                tracing::info!("[stdout] {}", line);
+                                lock.push_back(line);
+                                while lock.len() > MAX_STDOUT_LINES {
+                                    lock.pop_front();
+                                }
+                            }
+                        }
+                        line = stderr_lines.next_line() => {
+                            if let Ok(Some(line)) = line {
+                                let mut lock = self.stdout.lock().unwrap();
+                                tracing::error!("[stderr] {}", line);
                                 lock.push_back(line);
                                 while lock.len() > MAX_STDOUT_LINES {
                                     lock.pop_front();
@@ -189,7 +204,12 @@ impl WrappedServer {
                             child = None;
 
                             let mut lock = self.stdout.lock().unwrap();
-                            lock.push_back(format!("Subprocess exited with code: {:?}", exit_code));
+                            lock.push_back(String::new());
+                            if let Some(code) = exit_code.code() {
+                                lock.push_back(format!("Subprocess exited with code: {}", code));
+                            } else {
+                                lock.push_back("Subprocess exited with no exit code.".to_string());
+                            }
 
                             continue;
                         }
