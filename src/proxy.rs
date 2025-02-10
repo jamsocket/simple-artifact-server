@@ -5,7 +5,7 @@ use axum::{
     response::Response,
 };
 use handlebars::Handlebars;
-use http::{uri::Authority, Uri};
+use http::{uri::Authority, StatusCode, Uri};
 use plane_dynamic_proxy::{
     body::{to_simple_body, SimpleBody},
     proxy::ProxyClient,
@@ -63,7 +63,9 @@ pub async fn proxy_request(
 
     let (response, handler) = client.request(req).await.expect("Infallable");
 
-    if !response.status().is_success() {
+    if response.status() == StatusCode::GATEWAY_TIMEOUT
+        || response.status() == StatusCode::BAD_GATEWAY
+    {
         return render_error(State(server_state.clone()), path).await;
     }
 
