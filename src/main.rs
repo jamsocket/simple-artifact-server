@@ -120,7 +120,10 @@ async fn upload(
 }
 
 async fn wait_for_reload(State(state): State<ArcServerState>) -> (StatusCode, String) {
-    state.wrapped_server.wait_for_reload().await;
+    if !state.wrapped_server.running() {
+        state.wrapped_server.wait_for_reload().await;
+    }
+
     (StatusCode::OK, "OK".into())
 }
 
