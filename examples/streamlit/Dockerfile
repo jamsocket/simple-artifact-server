@@ -1,9 +1,9 @@
-FROM simplefrag AS simplefrag
+FROM ghcr.io/jamsocket/simple-artifact-server:latest AS simplefrag
 
 FROM python:3.8
 
 RUN python -m pip install --upgrade pip
-RUN python -m pip install streamlit pandas
+RUN python -m pip install streamlit pandas matplotlib numpy
 
 WORKDIR /work
 

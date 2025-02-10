@@ -1,10 +1,11 @@
 use anyhow::Result;
 use nix::{sys::signal::Signal, unistd::Pid};
 use std::{
+    collections::VecDeque,
     str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Weak,
+        Arc, Mutex, Weak,
     },
 };
 use tokio::{
@@ -13,6 +14,8 @@ use tokio::{
     sync::mpsc,
     task::JoinHandle,
 };
+
+const MAX_STDOUT_LINES: usize = 50;
 
 #[derive(Debug, Clone)]
 pub struct WrappedCommand {
@@ -60,12 +63,23 @@ pub struct WrappedServer {
     _handle: JoinHandle<()>,
     command_sender: mpsc::Sender<WrappedServerCommand>,
     running: AtomicBool,
+    stdout: Mutex<VecDeque<String>>,
     port: u16,
 }
 
 impl WrappedServer {
     pub fn running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
+    }
+
+    pub fn stdout(&self) -> String {
+        self.stdout
+            .lock()
+            .unwrap()
+            .iter()
+            .cloned()
+            .collect::<Vec<String>>()
+            .join("\n")
     }
 
     pub async fn interrupt(&self) {
@@ -94,6 +108,7 @@ impl WrappedServer {
 
         Arc::new_cyclic(|server: &Weak<Self>| {
             let server = server.clone();
+            let stdout = Mutex::default();
             WrappedServer {
                 command: command,
                 _handle: tokio::spawn(async move {
@@ -104,6 +119,7 @@ impl WrappedServer {
                 command_sender: command_sender,
                 running: AtomicBool::new(false),
                 port,
+                stdout,
             }
         })
     }
@@ -137,7 +153,12 @@ impl WrappedServer {
             // Prevent child from inheriting parent's signal handlers
             command.kill_on_drop(true);
             command.process_group(0); // Create new process group on Unix
-            child = Some(command.spawn()?);
+            command.stdout(std::process::Stdio::piped());
+            let mut spawned = command.spawn()?;
+            let stdout = spawned.stdout.take().expect("Failed to capture stdout");
+            let stdout_reader = tokio::io::BufReader::new(stdout);
+            let mut lines = tokio::io::AsyncBufReadExt::lines(stdout_reader);
+            child = Some(spawned);
             self.running.store(true, Ordering::SeqCst);
 
             // Handle messages
@@ -152,10 +173,24 @@ impl WrappedServer {
                                 return Ok(());
                             }
                         }
+                        line = lines.next_line() => {
+                            if let Ok(Some(line)) = line {
+                                let mut lock = self.stdout.lock().unwrap();
+                                lock.push_back(line);
+                                while lock.len() > MAX_STDOUT_LINES {
+                                    lock.pop_front();
+                                }
+                            }
+                        }
                         exit_code = mut_child.wait() => {
-                            tracing::info!("Subprocess exited with code: {}. Attemping to restart.", exit_code?);
+                            let exit_code = exit_code?;
+                            tracing::info!("Subprocess exited with code: {}. Attemping to restart.", exit_code);
                             self.running.store(false, Ordering::SeqCst);
                             child = None;
+
+                            let mut lock = self.stdout.lock().unwrap();
+                            lock.push_back(format!("Subprocess exited with code: {:?}", exit_code));
+
                             continue;
                         }
                     }
