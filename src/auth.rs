@@ -30,7 +30,7 @@ impl WriteUser {
             if user_data.read_only.unwrap_or(false) {
                 return Err((
                     StatusCode::FORBIDDEN,
-                    "Read-only access: Cannot modify fragments".to_string(),
+                    "Read-only access: Cannot modify artifacts".to_string(),
                 ));
             }
 

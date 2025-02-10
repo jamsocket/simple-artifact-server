@@ -51,7 +51,7 @@ To run the server:
 cargo build
 mkdir scratch
 cd scratch
-../target/debug/simple-fragment-server --command "python3 -m http.server 9090"
+../target/debug/simple-artifact-server --command "python3 -m http.server 9090"
 ```
 
 Then, to send a file:

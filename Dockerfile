@@ -10,6 +10,6 @@ FROM debian:bullseye-slim
 
 WORKDIR /work
 
-COPY --from=builder /app/target/release/simple-fragment-server /app/simple-fragment-server
+COPY --from=builder /app/target/release/simple-artifact-server /app/simple-artifact-server
 
-ENTRYPOINT [ "/app/simple-fragment-server" ]
+ENTRYPOINT [ "/app/simple-artifact-server" ]

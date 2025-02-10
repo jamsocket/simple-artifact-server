@@ -1249,7 +1249,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "simple-fragment-server"
+name = "simple-artifact-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
