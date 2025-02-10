@@ -65,3 +65,12 @@ Then, access the file:
 ```bash
 curl http://localhost:8080/README.md
 ```
+
+## Using it
+
+Generally, you would use this program as an `ENTRYPOINT` of a Docker container. See `examples/streamlit/README.md` for an example that uses Streamlit.
+
+The only required argument is `--command`, specifies a command that is run as the "artifact server". We expect this command to run on port 9090.
+
+The `simple-artifact-server` program listens on 8080 and proxies requests to 9090, unless they have the special `/_frag/*` path prefix, in which case it
+handles them itself.
