@@ -1,4 +1,4 @@
-use crate::ServerState;
+use crate::{auth::VerifiedPath, ServerState};
 use axum::{
     body::Body,
     extract::{Request, State},
@@ -31,13 +31,19 @@ fn translate_request(mut req: Request<Body>, port: u16) -> http::Request<SimpleB
 
 pub async fn proxy_request(
     State(server_state): State<Arc<ServerState>>,
+    VerifiedPath(path): VerifiedPath,
     req: Request<Body>,
 ) -> Response<SimpleBody> {
     if !server_state.wrapped_server.running() {
         let stdout = server_state.wrapped_server.stdout();
         let handlebars = Handlebars::new();
+        let await_url = format!("{path}_frag/await");
+
         let rendered = handlebars
-            .render_template(ERROR_TEMPLATE, &serde_json::json!({ "stdout": stdout }))
+            .render_template(
+                ERROR_TEMPLATE,
+                &serde_json::json!({ "stdout": stdout, "await_url": await_url }),
+            )
             .unwrap();
 
         let body = to_simple_body(rendered);

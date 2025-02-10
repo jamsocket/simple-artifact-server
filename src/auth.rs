@@ -54,3 +54,22 @@ impl<T> FromRequestParts<T> for WriteUser {
         ready(WriteUser::from_parts_sync(parts))
     }
 }
+
+pub struct VerifiedPath(pub String);
+
+impl<T> FromRequestParts<T> for VerifiedPath {
+    type Rejection = (StatusCode, String);
+
+    fn from_request_parts(
+        parts: &mut Parts,
+        _body: &T,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> {
+        let header = if let Some(header) = parts.headers.get("x-verified-path") {
+            header.to_str().unwrap_or_else(|_| "/").to_string()
+        } else {
+            "/".to_string()
+        };
+
+        std::future::ready(Ok(Self(header)))
+    }
+}
