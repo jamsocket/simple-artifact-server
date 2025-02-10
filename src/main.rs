@@ -139,7 +139,7 @@ async fn main() {
         .route("/status", get(status))
         .route("/restart", post(restart))
         .route("/interrupt", post(interrupt))
-        .route("/wait", get(wait_for_reload))
+        .route("/await", get(wait_for_reload))
         .route("/upload/{*filename}", post(upload));
 
     let app = Router::new()

@@ -4,7 +4,7 @@
     <title>Artifact ServerError</title>
     <script>
         async function waitForReload() {
-            const response = await fetch('/_frag/wait');
+            const response = await fetch('/_frag/await');
             if (response.ok) {
                 location.reload();
             }
