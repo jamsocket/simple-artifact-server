@@ -11,7 +11,7 @@ use std::{
 use tokio::{
     process::{Child, Command},
     select,
-    sync::mpsc,
+    sync::{broadcast, mpsc},
     task::JoinHandle,
 };
 
@@ -65,6 +65,7 @@ pub struct WrappedServer {
     running: AtomicBool,
     stdout: Mutex<VecDeque<String>>,
     port: u16,
+    reload_sender: broadcast::Sender<()>,
 }
 
 impl WrappedServer {
@@ -80,6 +81,10 @@ impl WrappedServer {
             .cloned()
             .collect::<Vec<String>>()
             .join("\n")
+    }
+
+    pub async fn wait_for_reload(&self) {
+        self.reload_sender.subscribe().recv().await.unwrap();
     }
 
     pub async fn interrupt(&self) {
@@ -105,6 +110,7 @@ impl WrappedServer {
 
     pub fn new(command: WrappedCommand, port: u16) -> Arc<Self> {
         let (command_sender, command_receiver) = mpsc::channel(32);
+        let (reload_sender, _) = broadcast::channel(32);
 
         Arc::new_cyclic(|server: &Weak<Self>| {
             let server = server.clone();
@@ -120,6 +126,7 @@ impl WrappedServer {
                 running: AtomicBool::new(false),
                 port,
                 stdout,
+                reload_sender,
             }
         })
     }
@@ -164,6 +171,9 @@ impl WrappedServer {
             let mut stderr_lines = tokio::io::AsyncBufReadExt::lines(stderr_reader);
             child = Some(spawned);
             self.running.store(true, Ordering::SeqCst);
+
+            // This returns error if there is no listener, but that's fine.
+            let _ = self.reload_sender.send(());
 
             // Handle messages
 

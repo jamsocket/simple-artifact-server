@@ -119,6 +119,11 @@ async fn upload(
     ))
 }
 
+async fn wait_for_reload(State(state): State<ArcServerState>) -> (StatusCode, String) {
+    state.wrapped_server.wait_for_reload().await;
+    (StatusCode::OK, "OK".into())
+}
+
 #[tokio::main]
 async fn main() {
     logging::init_tracing();
@@ -134,6 +139,7 @@ async fn main() {
         .route("/status", get(status))
         .route("/restart", post(restart))
         .route("/interrupt", post(interrupt))
+        .route("/wait", get(wait_for_reload))
         .route("/upload/{*filename}", post(upload));
 
     let app = Router::new()
